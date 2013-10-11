@@ -1,12 +1,13 @@
 (function() {
 	function Tester(subjects, target) {
 		this.subjects = subjects;
-		this.number = [];
+		this.number = [0];
 		this.target = target;
 	};
 
 	Tester.prototype = {
 		test:function() {
+			var best = null;
 			for(var i = 0, length = this.subjects.length; i < length; i++) {
 				var operator = undefined;
 				var result = undefined;
@@ -20,10 +21,24 @@
 						previousWasOperator = false;
 					} else {
 						// Two operators together is a mistake - kill them off.
+						// Unless it's +- => -
+						//             ++ => +
+						//             -+ => -
+						//             -- => +
 						if (previousWasOperator === true) {
-							this.number = [];
-							result = 0;
-							break;
+							if (operator == '+' && part == '-') {
+								operator = '-';
+							} else if (operator == '+' && part == '+') {
+								operator = '+';
+							} else if (operator == '-' && part == '+') {
+								operator = '-';
+							} else if (operator == '-' && part == '-') {
+								operator = '+';
+							} else {
+								this.number = [];
+								result = 0;
+								break;
+							}
 						}
 						// It's an operator
 						previousWasOperator = true;
@@ -45,9 +60,8 @@
 								} else if (operator == '-') {
 									result -= this._computeResult();
 								} else if (operator == '/') {
-									result = parseInt(
-										result / this._computeResult(),
-										10
+									result = parseFloat(
+										result / this._computeResult()
 									);
 								} else if (operator == '*') {
 									result = result * this._computeResult();
@@ -65,19 +79,45 @@
 					} else if (operator == '-') {
 						result -= this._computeResult();
 					} else if (operator == '/') {
-						result = parseInt(result / this._computeResult(), 10);
+						result = parseFloat(result / this._computeResult());
 					} else if (operator == '*') {
 						result = result * this._computeResult();
 					}
 				}
-				// if (result - this.target === 0) {
-				// 	// perfect
-				// 	result = 999999999;
-				// } else {
-				// 	result = 1 / (Math.abs(result) - this.target));
-				// }
+				if (best === null) {
+					best = {
+						index:i,
+						result:result
+					}
+				} else {
+					if (this.compare(best.result, result) === true) {
+						best = {
+							index:i,
+							result:result
+						};
+					}
+				}
 				console.log(this.subjects[i].toString() + " gave a result of: " + result);
 			}
+			if (best !== null) {
+				this.subjects[best.index].result = best.result;
+				this.emit('breed', this.subjects[best.index]);
+			} else {
+				this.emit('alldied', {});
+			}
+		},
+		compare:function(best, result) {
+			var better = true;
+			if (result == 0) {
+				better = false;
+			} else if ((this.target - result) != 0) {
+				console.log(
+					(this.target - Math.abs(best)) + " vs. " + (this.target - Math.abs(result))
+				);
+				better = (this.target - Math.abs(best) > this.target - Math.abs(result));
+			}
+
+			return better;
 		},
 		_computeResult:function() {
 			var multiplier = 10
@@ -113,34 +153,102 @@
 		},
 		getPart:function(index) {
 			return this.parts[index];
+		},
+		mutate:function(mutatePartIndex) {
+			var random = parseInt(Math.random() * 13 + 1, 10);
+			var newValue = this.values[random];
+			var oldValue = this.values[mutatePartIndex];
+			while (newValue == oldValue) {
+				random = parseInt(Math.random() * 13 + 1, 10);
+				newValue = this.values[random];
+			}
+			this.parts[mutatePartIndex] = newValue;
+		},
+		clone:function() {
+			var blob = new Blob();
+			// JSON.parse JSON.stringify is a dirty way to clone an object.
+			blob.parts = JSON.parse(JSON.stringify(this.parts));
+
+			return blob;
+		},
+		hash:function() {
+			return this.parts.join("");
 		}
 	};
 
-	function Breeder(type) {
+	function Breeder(type, generations) {
 		this.type = type;
+		this.generations = generations;
+		this.currentGeneration = 0;
+		this.mutateChance = 0.05;
 	};
 
 	Breeder.prototype = {
 		breed:function(quantity, survivor) {
 			var things = [];
-			for (var i = 0; i < quantity; i++) {
-				var thing = new this.type();
-				thing.init();
-				things.push(thing);
-			}
+			if (this.currentGeneration == this.generations) {
+				this.emit('breederdead');
+			} else {
+				if (survivor) {
+					things.push(survivor.clone());
+					var survivorHash = survivor.hash();
+					for (var i = 0; i < quantity; i++) {
+						var thing = survivor.clone();
+						this.mutate(thing);
+						while (thing.hash() == survivorHash) {
+							this.mutate(thing);
+						}
+						things.push(thing);
+					}
+				} else {
+					for (var i = 0; i < quantity; i++) {
+						var thing = new this.type();
+						thing.init();
+						things.push(thing);
+					}
+				}
 
-			return things;
+				this.currentGeneration++;
+				this.emit('bred', {things:things});
+			}
+		},
+		mutate:function(thing) {
+			var partsLength = thing.getPartsCount();
+			for (var i = 0; i < partsLength; i++) {
+				if (Math.random() < this.mutateChance) {
+					thing.mutate(i);
+				}
+			}
 		}
 	};
 
 	window.Game = {
 		run:function() {
 			var target = 42;
-			var breeder = new Breeder(Blob);
-			var blobs = breeder.breed(10, null);
+			var generations = 5;
+			var quantity = 10;
+			var breeder = new Breeder(Blob, generations);
+			Events(breeder);
 
-			var tester = new Tester(blobs, target);
-			tester.test();
+			breeder.on('bred', function(data) {
+				var tester = new Tester(data.things, target);
+				Events(tester);
+				tester.on('breed', function(survivor) {
+					console.log(
+						"We have a survivor! " + survivor.toString() + " with result: " + survivor.result
+					);
+					breeder.breed(quantity, survivor);
+				});
+				tester.on('alldied', function() {
+					console.log("All died...");
+					blobs = breeder.breed(quantity, null);
+				});
+				tester.test();
+			});
+			breeder.on('breederdead', function() {
+				console.log("Breeder Died");
+			});
+			breeder.breed(quantity, null);
 		}
 	};
 })();
