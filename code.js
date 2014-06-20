@@ -109,12 +109,17 @@
 		compare:function(best, result) {
 			var better = true;
 			if (result == 0) {
-				better = false;
-			} else if ((this.target - result) != 0) {
-				console.log(
-					(this.target - Math.abs(best)) + " vs. " + (this.target - Math.abs(result))
-				);
-				better = (this.target - Math.abs(best) > this.target - Math.abs(result));
+				better = true;
+			} else {
+				if (best < 0 && result < 0) {
+					better = (Math.abs(best) - this.target) > (Math.abs(result) - this.target);
+				} else {
+					console.log(
+						(this.target - Math.abs(best)) + " vs. " + (this.target - Math.abs(result))
+					);
+					better = (this.target - Math.abs(best)) > (this.target - Math.abs(result));
+					console.log(better ? "Chose left" : "Chose right");
+				}
 			}
 
 			return better;
