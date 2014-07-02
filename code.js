@@ -231,29 +231,52 @@
 		run:function() {
 			var target = 42;
 			var generations = 5;
-			var quantity = 10;
+			var quantity = 2;
 			var breeder = new Breeder(Blob, generations);
+			var game = this;
+
 			Events(breeder);
 
+			// Event triggered when a singular round of testing has occurred.
 			breeder.on('bred', function(data) {
+				game.prettyDisplay(data.things);
 				var tester = new Tester(data.things, target);
 				Events(tester);
 				tester.on('breed', function(survivor) {
-					console.log(
+					game.displayMessage(
 						"We have a survivor! " + survivor.toString() + " with result: " + survivor.result
-					);
+					)
+
 					breeder.breed(quantity, survivor);
 				});
 				tester.on('alldied', function() {
-					console.log("All died...");
+					game.displayMessage("All died...");
 					blobs = breeder.breed(quantity, null);
 				});
 				tester.test();
 			});
+
+			// When we have gone through the number of generations we're looking for.
 			breeder.on('breederdead', function() {
-				console.log("Breeder Died");
+				game.displayMessage("Breeder Died");
 			});
+
+			// Initial breed which will trigger the 'bred' event above.
 			breeder.breed(quantity, null);
+		},
+
+		prettyDisplay: function(jsonObject) {
+			var message = "";
+			$.each(jsonObject, function(key, value) {
+				message += "<div class='blob'>" + value + "</div>";
+			});
+			this.displayMessage(message);
+		},
+
+		displayMessage: function(message) {
+			$(document.body).append(
+				$("<div class='message'>").html(message)
+			);
 		}
 	};
 })();

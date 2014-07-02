@@ -7,8 +7,22 @@
         <script type='text/javascript' src='minivents.min.js'></script>
         <script type='text/javascript' src='code.js'></script>
         <script type='text/javascript'>
-            window.Game.run();
+            $(document).ready(function() {
+                window.Game.run();
+            });
         </script>
+        <style text='text/css'>
+            .blob {
+                border:1px solid red;
+                width:11%;
+                float:left;
+                margin:0px 5px 5px 0px;
+            }
+
+            .message {
+                clear:both;
+            }
+        </style>
     </head>
     <body>
     </body>
