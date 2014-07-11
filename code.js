@@ -13,6 +13,7 @@
 				var result = undefined;
 				var parts = this.subjects[i].getPartsCount();
 				var previousWasOperator = false;
+				this.number = [0];
 				for (var j = 0; j < parts; j++) {
 					var part = this.subjects[i].getPart(j).toString();
 					if (part.match(/[0-9]/) !== null) {
@@ -36,9 +37,14 @@
 								operator = '+';
 							} else {
 								this.number = [];
-								result = 0;
+								result = null;
 								break;
 							}
+						}
+						if (j === 0 && (part == '/' || part == '*')) {
+							this.number = [];
+							result = null;
+							break;
 						}
 						// It's an operator
 						previousWasOperator = true;
@@ -71,33 +77,44 @@
 						operator = part;
 					}
 				}
+
 				// If the last value was a number then it won't have been taken
 				// into account, so we need to do a final check
-				if (this.number.length > 0) {
-					if (operator == '+') {
-						result += this._computeResult();
-					} else if (operator == '-') {
-						result -= this._computeResult();
-					} else if (operator == '/') {
-						result = parseFloat(result / this._computeResult());
-					} else if (operator == '*') {
-						result = result * this._computeResult();
+				if (result !== null) {
+					if (this.number.length > 0) {
+						if (operator == '+') {
+							result += this._computeResult();
+						} else if (operator == '-') {
+							result -= this._computeResult();
+						} else if (operator == '/') {
+							result = parseFloat(result / this._computeResult());
+						} else if (operator == '*') {
+							result = result * this._computeResult();
+						}
 					}
 				}
-				if (best === null) {
+
+				if (best === null || best.result === null) {
 					best = {
 						index:i,
 						result:result
 					}
 				} else {
 					if (this.compare(best.result, result) === true) {
+						var oldI = best.index;
+						var newI = i;
+						// window.Game.displayMessage(
+						// 	this.subjects[oldI].toString() + " = " +
+						// 	best.result + " was worse than " +
+						// 	this.subjects[i].toString() + " = " +
+						// 	result
+						// );
 						best = {
 							index:i,
 							result:result
 						};
 					}
 				}
-				console.log(this.subjects[i].toString() + " gave a result of: " + result);
 			}
 			if (best !== null) {
 				this.subjects[best.index].result = best.result;
@@ -108,18 +125,16 @@
 		},
 		compare:function(best, result) {
 			var better = true;
-			if (result == 0) {
+			if (result === null) {
+				better = false;
+			} else if (result === this.target) {
 				better = true;
 			} else {
-				if (best < 0 && result < 0) {
-					better = (Math.abs(best) - this.target) > (Math.abs(result) - this.target);
-				} else {
-					console.log(
-						(this.target - Math.abs(best)) + " vs. " + (this.target - Math.abs(result))
-					);
-					better = (this.target - Math.abs(best)) > (this.target - Math.abs(result));
-					console.log(better ? "Chose left" : "Chose right");
-				}
+				var oldVal = Math.abs(parseFloat(best/this.target) - 1);
+
+				var newVal = Math.abs(parseFloat(result/this.target) - 1);
+				var min = Math.min(oldVal, newVal);
+				better = min === newVal;
 			}
 
 			return better;
@@ -197,7 +212,7 @@
 				if (survivor) {
 					things.push(survivor.clone());
 					var survivorHash = survivor.hash();
-					for (var i = 0; i < quantity; i++) {
+					for (var i = 1; i < quantity; i++) {
 						var thing = survivor.clone();
 						this.mutate(thing);
 						while (thing.hash() == survivorHash) {
@@ -230,8 +245,8 @@
 	window.Game = {
 		run:function() {
 			var target = 42;
-			var generations = 5;
-			var quantity = 2;
+			var generations = 50;
+			var quantity = 7;
 			var breeder = new Breeder(Blob, generations);
 			var game = this;
 
@@ -244,7 +259,7 @@
 				Events(tester);
 				tester.on('breed', function(survivor) {
 					game.displayMessage(
-						"We have a survivor! " + survivor.toString() + " with result: " + survivor.result
+						"We have a survivor! " + survivor.toString() + " = " + survivor.result
 					)
 
 					breeder.breed(quantity, survivor);
